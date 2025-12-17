@@ -29,8 +29,8 @@ export async function handler(event) {
   }
 
   try {
-    // Your trained Meep model
-    const MODEL_VERSION = process.env.REPLICATE_MODEL_VERSION || '3seater/meep:b0104cf3d9662362279490abd5c8d0ea43ad3523ea5de483f523ad24c7135751'
+    // Your trained Meep model - just the version hash for /v1/predictions endpoint
+    const VERSION = process.env.REPLICATE_MODEL_VERSION || 'c4275584556c9d301f9f389e720bff117a3013dbf7b73f565c6f7f4a1e4ccffa'
 
     // Create the prediction
     const response = await fetch('https://api.replicate.com/v1/predictions', {
@@ -40,23 +40,27 @@ export async function handler(event) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        version: MODEL_VERSION,
+        version: VERSION,
         input: {
-          // The prompt template - always includes your trained trigger word MEEP
-          prompt: `MEEP ${prompt}`,
+          // Match caption format exactly
+          prompt: `MEEP, pink and white cartoon character, ${prompt}`,
           num_outputs: 1,
-          num_inference_steps: 28,
+          num_inference_steps: 35,
           guidance_scale: 3.5,
-          output_format: 'png',
+          lora_scale: 2.0,               // Higher for stronger character features
+          go_fast: false,                // Better quality, slower
+          output_format: 'webp',
+          output_quality: 95,
         },
       }),
     })
 
-    if (!response.ok) {
-      throw new Error('Failed to create prediction')
-    }
-
     const prediction = await response.json()
+    
+    if (!response.ok) {
+      console.error('Replicate API error:', prediction)
+      throw new Error(`Failed to create prediction: ${JSON.stringify(prediction)}`)
+    }
 
     // Poll for the result (Replicate is async)
     let result = prediction
@@ -86,10 +90,10 @@ export async function handler(event) {
     }
 
   } catch (error) {
-    console.error('Generation error:', error)
+    console.error('Generation error:', error.message)
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to generate image' }),
+      body: JSON.stringify({ error: error.message || 'Failed to generate image' }),
     }
   }
 }
